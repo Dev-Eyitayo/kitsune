@@ -94,7 +94,7 @@ def create_kitsune_profile(slug: str, url: str, hide_browser_ui: bool = True) ->
     with open(user_js, "w", encoding="utf-8") as f:
         f.write("\n".join(user_js_content) + "\n")
 
-    # 2. Write userChrome.css for clean app-like UI
+    # 2. Write userChrome.css for clean app-like UI without breaking popup anchors
     if hide_browser_ui:
         chrome_dir = profile_dir / "chrome"
         chrome_dir.mkdir(parents=True, exist_ok=True)
@@ -106,9 +106,34 @@ def create_kitsune_profile(slug: str, url: str, hide_browser_ui: bool = True) ->
     visibility: collapse !important;
 }
 
-/* Hide Navigation / URL Bar */
+/* Visually collapse Navigation/URL bar without breaking popup anchors */
 #nav-bar {
-    visibility: collapse !important;
+    height: 0px !important;
+    min-height: 0px !important;
+    max-height: 0px !important;
+    margin: 0px !important;
+    padding: 0px !important;
+    border: none !important;
+    background: transparent !important;
+    overflow: visible !important;
+}
+
+#nav-bar > * {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Keep permission prompts, notification popups, and menus fully visible and interactive */
+#permission-popup,
+#notification-popup,
+#contentAreaContextMenu,
+.popup-anchor,
+panel[type="autocomplete-richlistbox"],
+panel,
+menupopup {
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
 }
 
 /* Hide Bookmarks Toolbar */
