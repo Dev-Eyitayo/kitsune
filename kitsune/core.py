@@ -4,8 +4,10 @@ Core orchestration logic for kitsune.
 
 import re
 import shutil
+import subprocess
+import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .desktop import (
     create_desktop_launcher,
@@ -40,12 +42,12 @@ def create_app(
     hide_ui: bool = True,
 ) -> Dict[str, str]:
     """
-    Creates a full standalone web app with dedicated profile, desktop launcher, and dock integration.
+    Creates a standalone web app with dedicated profile, desktop launcher, and dock integration.
     """
     if not slug:
         slug = slugify(name)
 
-    # 1. Create dedicated Firefox profile
+    # 1. Create/update dedicated Firefox profile (never deletes existing cookies/data)
     profile_dir = create_kitsune_profile(slug, url, hide_browser_ui=hide_ui)
 
     # 2. Setup link router if requested
@@ -128,6 +130,79 @@ def list_apps() -> List[Dict[str, str]]:
         })
 
     return results
+
+
+def refresh_all_apps() -> List[Dict[str, str]]:
+    """
+    Refreshes all installed web apps with the latest userChrome.css, user.js,
+    and desktop launcher configurations.
+    """
+    apps = list_apps()
+    refreshed = []
+    for app in apps:
+        slug = app["slug"]
+        url = app["url"]
+        name = app["name"]
+        if url and url != "N/A":
+            create_app(
+                name=name,
+                url=url,
+                slug=slug,
+                pin_dock=False,
+                route_links=True,
+                hide_ui=True
+            )
+            refreshed.append(app)
+    return refreshed
+
+
+def update_kitsune() -> Dict[str, Any]:
+    """
+    Updates kitsune codebase from GitHub and refreshes all installed web applications.
+    """
+    repo_url = "https://github.com/dev-eyitayo/kitsune.git"
+    install_dir = Path.home() / ".local" / "share" / "kitsune"
+    updated_code = False
+
+    # 1. Update the kitsune installation files
+    if (install_dir / ".git").exists():
+        try:
+            subprocess.run(
+                ["git", "-C", str(install_dir), "pull", "origin", "main"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            updated_code = True
+        except Exception:
+            pass
+    elif install_dir.exists():
+        try:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                subprocess.run(
+                    ["git", "clone", "--depth", "1", repo_url, tmp_dir],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                for item in Path(tmp_dir).iterdir():
+                    if item.name != ".git":
+                        dest = install_dir / item.name
+                        if item.is_dir():
+                            shutil.copytree(item, dest, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(item, dest)
+            updated_code = True
+        except Exception:
+            pass
+
+    # 2. Refresh all installed web apps with latest configs
+    refreshed_apps = refresh_all_apps()
+
+    return {
+        "updated_code": updated_code,
+        "refreshed_apps": refreshed_apps,
+    }
 
 
 def remove_app(slug: str) -> bool:

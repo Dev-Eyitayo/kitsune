@@ -108,9 +108,15 @@ kitsune create --name "Grafana Monitoring" --url "https://grafana.internal.net" 
 * `--no-route`: Keep external links within the web app instead of forwarding to the main browser.
 * `--show-ui`: Retain standard Firefox navigation bars and tabs inside the application window.
 
-### 4. Managing Applications
+### 4. Managing & Updating Applications
 
 ```bash
+# Update kitsune from GitHub and refresh all installed web apps automatically
+kitsune update
+
+# Refresh configs/styling for all installed web apps
+kitsune refresh
+
 # List all installed web applications
 kitsune list
 

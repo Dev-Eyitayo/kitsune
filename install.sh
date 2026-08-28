@@ -47,4 +47,10 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
 fi
 
 echo -e "\n${GREEN}${BOLD}[OK] kitsune successfully installed!${NC}"
+
+# If user has existing web apps installed, refresh them automatically
+if [ -x "$BIN_DIR/kitsune" ]; then
+    "$BIN_DIR/kitsune" refresh 2>/dev/null || true
+fi
+
 echo -e "Try running: ${BOLD}kitsune create whatsapp${NC} or ${BOLD}kitsune${NC} for interactive wizard.\n"

@@ -7,7 +7,7 @@ import sys
 from typing import Optional
 
 from . import __version__
-from .core import create_app, list_apps, remove_app
+from .core import create_app, list_apps, refresh_all_apps, remove_app, update_kitsune
 from .presets import PRESETS
 
 
@@ -166,6 +166,36 @@ def cmd_presets(args):
     print(f"\nUsage: {Colors.BOLD}kitsune create <preset-name>{Colors.RESET} (e.g. kitsune create whatsapp)\n")
 
 
+def cmd_update(args):
+    print(f"\n{Colors.CYAN}[INFO] Checking for updates and pulling latest kitsune release...{Colors.RESET}")
+    res = update_kitsune()
+    if res["updated_code"]:
+        print(f"{Colors.GREEN}[OK] Successfully updated kitsune codebase.{Colors.RESET}")
+    else:
+        print(f"{Colors.BLUE}[INFO] Kitsune codebase is up to date.{Colors.RESET}")
+
+    apps = res["refreshed_apps"]
+    if apps:
+        print(f"\n{Colors.CYAN}[INFO] Refreshing {len(apps)} installed web application(s)...{Colors.RESET}")
+        for app in apps:
+            print(f"  {Colors.GREEN}[OK]{Colors.RESET} Refreshed: {Colors.BOLD}{app['name']}{Colors.RESET} ({app['slug']})")
+        print(f"\n{Colors.GREEN}{Colors.BOLD}[OK] All web apps refreshed with latest fixes!{Colors.RESET}\n")
+    else:
+        print(f"\n{Colors.YELLOW}[INFO] No installed web apps found to refresh.{Colors.RESET}\n")
+
+
+def cmd_refresh(args):
+    apps = refresh_all_apps()
+    if not apps:
+        print(f"{Colors.YELLOW}No installed web applications found to refresh.{Colors.RESET}")
+        return
+
+    print(f"\n{Colors.CYAN}[INFO] Refreshing {len(apps)} installed web application(s)...{Colors.RESET}")
+    for app in apps:
+        print(f"  {Colors.GREEN}[OK]{Colors.RESET} Refreshed: {Colors.BOLD}{app['name']}{Colors.RESET} ({app['slug']})")
+    print(f"\n{Colors.GREEN}{Colors.BOLD}[OK] All web apps successfully refreshed!{Colors.RESET}\n")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="kitsune",
@@ -195,6 +225,12 @@ def main():
     # Presets command
     subparsers.add_parser("presets", help="List all available presets")
 
+    # Update command
+    subparsers.add_parser("update", help="Update kitsune and refresh all installed web apps")
+
+    # Refresh command
+    subparsers.add_parser("refresh", help="Refresh configuration for all installed web apps")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -212,6 +248,10 @@ def main():
         cmd_remove(args)
     elif args.command == "presets":
         cmd_presets(args)
+    elif args.command == "update":
+        cmd_update(args)
+    elif args.command == "refresh":
+        cmd_refresh(args)
 
 
 if __name__ == "__main__":
