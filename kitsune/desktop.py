@@ -98,7 +98,7 @@ Version=1.0
 Name={name}
 GenericName={name} Web App
 Comment={description or f'{name} Web App via Kitsune'}
-Exec=env GDK_BACKEND=x11 firefox --class {wm_class} --name {wm_class} --new-instance --profile "{profile_dir}" "{url}"
+Exec=env GDK_BACKEND=x11 MOZ_APP_REMOTINGNAME={wm_class} firefox --class {wm_class} --name {wm_class} --new-instance --profile "{profile_dir}" "{url}"
 Icon={icon_path}
 Terminal=false
 Type=Application
@@ -109,7 +109,7 @@ Actions=new-window;
 
 [Desktop Action new-window]
 Name=Open {name}
-Exec=env GDK_BACKEND=x11 firefox --class {wm_class} --name {wm_class} --new-instance --profile "{profile_dir}" "{url}"
+Exec=env GDK_BACKEND=x11 MOZ_APP_REMOTINGNAME={wm_class} firefox --class {wm_class} --name {wm_class} --new-instance --profile "{profile_dir}" "{url}"
 """
     with open(desktop_file, "w", encoding="utf-8") as f:
         f.write(content)
