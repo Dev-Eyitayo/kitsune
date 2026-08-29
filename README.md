@@ -21,6 +21,7 @@ Desktop Firefox does not provide native Progressive Web App (PWA) or Site-Specif
 
 * **Complete Profile Sandboxing:** Each application runs in its own dedicated Firefox profile with isolated cookies, local storage, sessions, and cache.
 * **Wayland & GNOME Dock Separation:** Bypasses the Wayland `app_id` grouping limitation using XWayland window class targeting (`--class`, `--name`, and `StartupWMClass`), ensuring independent dock icons and taskbar grouping.
+* **Instance Remoting Isolation:** Uses dedicated `MOZ_APP_REMOTINGNAME` channels to prevent web apps from capturing or hijacking your normal Firefox browser on system boot.
 * **Native Frameless Window:** Automatically injects custom `userChrome.css` to remove tabs, URL address bars, and navigation toolbars while retaining native Linux window controls.
 * **Intelligent External Link Routing:** Outbound links clicked inside the web app (e.g., articles, repositories, external portals) are automatically forwarded to your primary daily Firefox browser window via a native messaging bridge.
 * **Zero External Dependencies:** Built entirely with the Python standard library (`sqlite3`, `configparser`, `urllib`, `subprocess`, `json`). Requires no third-party package installations.
@@ -141,6 +142,7 @@ kitsune remove whatsapp
        +---> [ Desktop Launcher ] -------> ~/.local/share/applications/kitsune-<slug>.desktop
        |     - StartupWMClass=kitsune-<slug>
        |     - GDK_BACKEND=x11
+       |     - MOZ_APP_REMOTINGNAME=kitsune-<slug>
        |
        +---> [ Icon Manager ] -----------> ~/.local/share/icons/kitsune-<slug>.(svg|png)
        |
@@ -151,7 +153,7 @@ kitsune remove whatsapp
 
 1. **Profile Generation:** Creates an isolated profile under `~/.mozilla/firefox/kitsune-<slug>` and writes optimized `user.js` configurations to silence first-run screens and disable session restore duplication.
 2. **UI Styling:** Deploys `userChrome.css` rules that collapse `#TabsToolbar` and `#nav-bar` while retaining OS window controls.
-3. **Window Identity:** Invokes Firefox with `env GDK_BACKEND=x11 firefox --class kitsune-<slug> --name kitsune-<slug>` to guarantee GNOME Shell maps the window to `StartupWMClass=kitsune-<slug>`.
+3. **Window & Process Identity:** Invokes Firefox with `env GDK_BACKEND=x11 MOZ_APP_REMOTINGNAME=kitsune-<slug> firefox --class kitsune-<slug> --name kitsune-<slug>` to guarantee GNOME Shell maps the window to `StartupWMClass=kitsune-<slug>` and isolates D-Bus remoting from regular Firefox instances.
 4. **Link Routing Bridge:** Deploys a Native Messaging host manifest (`pwalinks.json`) and a Python bridge that intercepts outbound `<a>` navigation and dispatches it directly to `firefox --profile <main_profile> --new-tab <url>`.
 
 ---
@@ -166,6 +168,9 @@ kitsune remove whatsapp
 ---
 
 ## Frequently Asked Questions (FAQ)
+
+#### What happens if I launch a web app before opening my regular Firefox browser?
+`kitsune` assigns a unique `MOZ_APP_REMOTINGNAME` to every web app. When you later open your regular Firefox browser, it communicates strictly over `org.mozilla.firefox` and will never be trapped or merged into an already running web app window.
 
 #### Does this use more RAM than regular Firefox?
 No. Firefox shares its underlying binary and rendering libraries across instances. Profile sandboxing introduces negligible memory overhead while isolating site storage and cookies.
