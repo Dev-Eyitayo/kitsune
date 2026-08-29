@@ -7,6 +7,7 @@ import sys
 from typing import Optional
 
 from . import __version__
+from .browsers import SUPPORTED_BROWSERS, get_available_browsers, get_default_browser
 from .core import create_app, list_apps, refresh_all_apps, remove_app, update_kitsune
 from .presets import PRESETS
 
@@ -29,7 +30,7 @@ def print_banner():
   ██╔═██╗ ██║   ██║   ╚════██║██║   ██║██║╚██╗██║██╔══╝  
   ██║  ██╗██║   ██║   ███████║╚██████╔╝██║ ╚████║███████╗
   ╚═╝  ╚═╝╚═╝   ╚═╝   ╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
-{Colors.RESET}{Colors.BLUE}  Firefox Web App & Desktop Integration Tool for Linux (v{__version__}){Colors.RESET}
+{Colors.RESET}{Colors.BLUE}  Universal Web App & Desktop Integration Tool (v{__version__}){Colors.RESET}
 """
     print(banner)
 
@@ -74,17 +75,33 @@ def interactive_create():
         print(f"{Colors.RED}Error: URL is required.{Colors.RESET}")
         return
 
+    # Browser Selection
+    available_browsers = get_available_browsers()
+    default_key, _ = get_default_browser()
+    browser_choice = default_key
+
+    if len(available_browsers) > 1:
+        print(f"\n{Colors.BOLD}Detected Browsers:{Colors.RESET}")
+        browser_keys = list(available_browsers.keys())
+        for idx, bkey in enumerate(browser_keys, 1):
+            marker = f"{Colors.GREEN}(Default){Colors.RESET}" if bkey == default_key else ""
+            print(f"  [{idx}] {available_browsers[bkey]['name']} {marker}")
+        b_input = input(f"\n{Colors.BOLD}Select browser engine [1-{len(browser_keys)}, Default: {default_key}]:{Colors.RESET} ").strip()
+        if b_input.isdigit() and 1 <= int(b_input) <= len(browser_keys):
+            browser_choice = browser_keys[int(b_input) - 1]
+
     icon_prompt = "Icon (URL or local path)" if not default_icon else f"Icon URL/Path [{default_icon}]"
     icon = input(f"{Colors.BOLD}{icon_prompt}:{Colors.RESET} ").strip() or default_icon
 
-    pin_dock = prompt_bool("Pin to Ubuntu Dock / Favorites?", default=True)
-    route_links = prompt_bool("Route clicked external links to main Firefox browser?", default=True)
+    pin_dock = prompt_bool("Pin to Dock / Taskbar / Favorites?", default=True)
+    route_links = prompt_bool("Route clicked external links to main browser window?", default=True)
     hide_ui = prompt_bool("Hide browser toolbar & address bar for native app feel?", default=True)
 
-    print(f"\n{Colors.CYAN}Configuring {name}...{Colors.RESET}")
+    print(f"\n{Colors.CYAN}Configuring {name} with {browser_choice.capitalize()}...{Colors.RESET}")
     info = create_app(
         name=name,
         url=url,
+        browser=browser_choice,
         icon=icon,
         description=default_desc,
         categories=default_categories,
@@ -94,12 +111,13 @@ def interactive_create():
     )
 
     print(f"\n{Colors.GREEN}{Colors.BOLD}[OK] Successfully created {name}{Colors.RESET}")
+    print(f"  - Browser Engine:    {Colors.BLUE}{info['browser']}{Colors.RESET}")
     print(f"  - Profile Directory: {Colors.BLUE}{info['profile_dir']}{Colors.RESET}")
     print(f"  - Desktop Launcher:  {Colors.BLUE}{info['desktop_file']}{Colors.RESET}")
     print(f"  - Icon Path:         {Colors.BLUE}{info['icon_path']}{Colors.RESET}")
     if info["pinned"] == "True":
-        print(f"  - Dock Status:       {Colors.GREEN}Pinned to Ubuntu Dock{Colors.RESET}")
-    print(f"\nYou can now launch {name} directly from your dock or application menu.\n")
+        print(f"  - Dock Status:       {Colors.GREEN}Pinned to Favorites / Dock{Colors.RESET}")
+    print(f"\nYou can now launch {name} directly from your application menu or taskbar.\n")
 
 
 def cmd_create(args):
@@ -121,11 +139,13 @@ def cmd_create(args):
     icon = args.icon or (preset["icon_url"] if preset else None)
     categories = preset.get("categories", "Network;WebBrowser;") if preset else "Network;WebBrowser;"
     desc = preset.get("description", "") if preset else f"{app_name} Web App via Kitsune"
+    browser = args.browser
 
     print(f"{Colors.CYAN}Creating web app '{app_name}'...{Colors.RESET}")
     info = create_app(
         name=app_name,
         url=url,
+        browser=browser,
         icon=icon,
         description=desc,
         categories=categories,
@@ -133,7 +153,7 @@ def cmd_create(args):
         route_links=not args.no_route,
         hide_ui=not args.show_ui,
     )
-    print(f"{Colors.GREEN}{Colors.BOLD}[OK] Created {app_name}{Colors.RESET} (Pinned to dock: {info['pinned']})")
+    print(f"{Colors.GREEN}{Colors.BOLD}[OK] Created {app_name}{Colors.RESET} ({info['browser']})")
 
 
 def cmd_list(args):
@@ -145,11 +165,24 @@ def cmd_list(args):
 
     print(f"\n{Colors.BOLD}{Colors.CYAN}Installed Kitsune Web Applications ({len(apps)}):{Colors.RESET}\n")
     for app in apps:
-        print(f"  [x] {Colors.BOLD}{app['name']}{Colors.RESET} ({Colors.BLUE}{app['slug']}{Colors.RESET})")
+        print(f"  [x] {Colors.BOLD}{app['name']}{Colors.RESET} ({Colors.BLUE}{app['slug']}{Colors.RESET}) - {app['browser']}")
         print(f"      URL:      {app['url']}")
         print(f"      Launcher: {app['desktop_file']}")
         print(f"      Profile:  {app['profile_dir']}")
         print()
+
+
+def cmd_browsers(args):
+    available = get_available_browsers()
+    default_key, _ = get_default_browser()
+
+    print(f"\n{Colors.BOLD}{Colors.CYAN}Supported Browser Backends:{Colors.RESET}\n")
+    for key, conf in SUPPORTED_BROWSERS.items():
+        is_avail = key in available
+        status = f"{Colors.GREEN}Detected ({available[key]['binary']}){Colors.RESET}" if is_avail else f"{Colors.YELLOW}Not Found{Colors.RESET}"
+        default_tag = f" {Colors.BOLD}{Colors.GREEN}[Default]{Colors.RESET}" if key == default_key else ""
+        print(f"  - {Colors.BOLD}{conf['name']:<18}{Colors.RESET} (engine: {conf['type']:<8}) -> {status}{default_tag}")
+    print(f"\nUsage: {Colors.BOLD}kitsune create <app> --browser <name>{Colors.RESET} (e.g. kitsune create whatsapp --browser edge)\n")
 
 
 def cmd_remove(args):
@@ -199,7 +232,7 @@ def cmd_refresh(args):
 def main():
     parser = argparse.ArgumentParser(
         prog="kitsune",
-        description="Turn any website into a standalone desktop web app using Firefox on Linux.",
+        description="Turn any website into a standalone desktop web app across Linux and Windows.",
     )
     parser.add_argument("-v", "--version", action="version", version=f"kitsune {__version__}")
 
@@ -210,13 +243,21 @@ def main():
     create_p.add_argument("name", nargs="?", help="App name or preset (e.g. whatsapp, chatgpt, discord)")
     create_p.add_argument("--url", help="Web App URL")
     create_p.add_argument("--name", dest="name_override", help="Custom display name")
+    create_p.add_argument(
+        "-b", "--browser",
+        choices=["firefox", "edge", "brave", "chrome", "zen", "librewolf", "chromium"],
+        help="Target browser engine (default: auto-detected)",
+    )
     create_p.add_argument("--icon", help="Icon file path or download URL")
-    create_p.add_argument("--no-pin", action="store_true", help="Do not pin to Ubuntu dock")
+    create_p.add_argument("--no-pin", action="store_true", help="Do not pin to dock/favorites")
     create_p.add_argument("--no-route", action="store_true", help="Do not route external links to main browser")
     create_p.add_argument("--show-ui", action="store_true", help="Keep standard browser URL bar and tabs")
 
     # List command
     subparsers.add_parser("list", help="List all installed Kitsune web applications")
+
+    # Browsers command
+    subparsers.add_parser("browsers", help="List detected browser backends on this system")
 
     # Remove command
     remove_p = subparsers.add_parser("remove", help="Remove an installed web application")
@@ -244,6 +285,8 @@ def main():
         cmd_create(args)
     elif args.command == "list":
         cmd_list(args)
+    elif args.command == "browsers":
+        cmd_browsers(args)
     elif args.command == "remove":
         cmd_remove(args)
     elif args.command == "presets":
