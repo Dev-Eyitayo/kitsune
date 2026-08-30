@@ -3,8 +3,8 @@ Link routing subsystem for kitsune.
 Intercepts external link clicks inside the web app and delegates them to the main Firefox profile.
 """
 
-import os
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -17,6 +17,59 @@ import os
 import struct
 import subprocess
 import sys
+from urllib.parse import urlparse
+
+AUTH_DOMAINS = [
+    "accounts.google.com",
+    "accounts.youtube.com",
+    "appleid.apple.com",
+    "login.microsoftonline.com",
+    "login.live.com",
+    "github.com",
+    "auth0.com",
+    "auth.atlassian.com",
+    "okta.com",
+    "onelogin.com",
+    "pingidentity.com",
+    "duosecurity.com",
+    "stripe.com",
+    "paypal.com",
+    "paddle.com",
+    "api.twitter.com",
+    "twitter.com",
+    "x.com",
+    "t.co",
+    "arkoselabs.com",
+    "funcaptcha.com",
+    "oauth.telegram.org",
+    "discord.com",
+    "facebook.com",
+    "instagram.com",
+    "linkedin.com",
+    "slack.com"
+]
+
+def is_auth_url(url_str):
+    try:
+        u = urlparse(url_str)
+        host = (u.hostname or "").lower()
+        if any(host == d or host.endswith("." + d) for d in AUTH_DOMAINS):
+            if (
+                host in ("accounts.google.com", "appleid.apple.com")
+                or "/login" in u.path
+                or "/oauth" in u.path
+                or "/signin" in u.path
+                or "/auth" in u.path
+                or "/i/flow" in u.path
+                or "client_id=" in u.query
+                or "redirect_uri=" in u.query
+            ):
+                return True
+        if "/oauth" in u.path or "client_id=" in u.query or "redirect_uri=" in u.query:
+            return True
+        return False
+    except Exception:
+        return False
 
 def read_message():
     raw_length = sys.stdin.buffer.read(4)
@@ -48,6 +101,10 @@ def main():
             url = data.strip()
         
         if url and isinstance(url, str) and url.startswith(('http://', 'https://', 'mailto:')):
+            # Do not intercept OAuth, SSO, or payment authentication popups
+            if is_auth_url(url):
+                continue
+
             # Directly target the main user profile
             if main_profile_path and os.path.exists(main_profile_path):
                 subprocess.Popen([
