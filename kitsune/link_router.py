@@ -12,11 +12,15 @@ from .profile import get_main_profile_path
 
 
 ROUTER_SCRIPT_CONTENT = """#!/usr/bin/env python3
+import ctypes
 import json
 import os
+import shutil
 import struct
 import subprocess
 import sys
+import time
+from ctypes import c_ulong, c_int, c_long, Structure, POINTER, byref
 from urllib.parse import urlparse
 
 AUTH_DOMAINS = [
@@ -48,6 +52,98 @@ AUTH_DOMAINS = [
     "linkedin.com",
     "slack.com"
 ]
+
+class XClientMessageEvent(Structure):
+    _fields_ = [
+        ('type', c_int),
+        ('serial', c_ulong),
+        ('send_event', c_int),
+        ('display', ctypes.c_void_p),
+        ('window', c_ulong),
+        ('message_type', c_ulong),
+        ('format', c_int),
+        ('l', c_long * 5)
+    ]
+
+class XEvent(ctypes.Union):
+    _fields_ = [
+        ('type', c_int),
+        ('xclient', XClientMessageEvent),
+        ('pad', c_long * 24)
+    ]
+
+def raise_main_browser_window():
+    try:
+        x11 = ctypes.CDLL('libX11.so.6')
+        display = x11.XOpenDisplay(None)
+        if not display:
+            return False
+        
+        root = x11.XDefaultRootWindow(display)
+        net_client_list = x11.XInternAtom(display, b'_NET_CLIENT_LIST', False)
+        net_active_window = x11.XInternAtom(display, b'_NET_ACTIVE_WINDOW', False)
+        wm_class_atom = x11.XInternAtom(display, b'WM_CLASS', False)
+        
+        actual_type = c_ulong()
+        actual_format = c_int()
+        nitems = c_ulong()
+        bytes_after = c_ulong()
+        prop = ctypes.c_void_p()
+        
+        res = x11.XGetWindowProperty(
+            display, root, net_client_list, 0, 1024, False, 33,
+            byref(actual_type), byref(actual_format), byref(nitems), byref(bytes_after), byref(prop)
+        )
+        
+        if res != 0 or not prop:
+            x11.XCloseDisplay(display)
+            return False
+            
+        windows = ctypes.cast(prop, POINTER(c_ulong))
+        target_win = None
+        
+        for i in range(nitems.value):
+            win = windows[i]
+            class_prop = ctypes.c_void_p()
+            c_nitems = c_ulong()
+            x11.XGetWindowProperty(display, win, wm_class_atom, 0, 1024, False, 31, byref(actual_type), byref(actual_format), byref(c_nitems), byref(bytes_after), byref(class_prop))
+            if class_prop:
+                raw_bytes = ctypes.string_at(class_prop, c_nitems.value)
+                parts = [p.decode('latin1', errors='ignore').lower() for p in raw_bytes.split(b'\\x00') if p]
+                x11.XFree(class_prop)
+                
+                # Match main browser window (contains 'firefox', 'chrome', 'edge', etc. but NOT kitsune-*)
+                if any('firefox' in p for p in parts) and not any(p.startswith('kitsune-') for p in parts):
+                    target_win = win
+                    break
+        
+        x11.XFree(prop)
+        
+        if target_win:
+            event = XEvent()
+            event.type = 33 # ClientMessage
+            event.xclient.type = 33
+            event.xclient.serial = 0
+            event.xclient.send_event = 1
+            event.xclient.display = display
+            event.xclient.window = target_win
+            event.xclient.message_type = net_active_window
+            event.xclient.format = 32
+            event.xclient.l[0] = 2 # 2 = Pager / user direct request (forces window manager to raise and focus)
+            event.xclient.l[1] = 0
+            event.xclient.l[2] = 0
+            event.xclient.l[3] = 0
+            event.xclient.l[4] = 0
+            
+            mask = (1 << 19) | (1 << 20)
+            x11.XSendEvent(display, root, False, mask, byref(event))
+            x11.XFlush(display)
+            x11.XCloseDisplay(display)
+            return True
+        x11.XCloseDisplay(display)
+        return False
+    except Exception:
+        return False
 
 def is_auth_url(url_str):
     try:
@@ -105,15 +201,25 @@ def main():
             if is_auth_url(url):
                 continue
 
-            # Directly target the main user profile
-            if main_profile_path and os.path.exists(main_profile_path):
+            # Generate fresh XDG / FreeDesktop startup activation token
+            launch_env = clean_env.copy()
+            timestamp = int(time.time() * 1000)
+            token = f"kitsune_{os.getpid()}_{timestamp}_TIME{timestamp}"
+            launch_env["DESKTOP_STARTUP_ID"] = token
+            # Dispatch through native GNOME / FreeDesktop URL handler so Ubuntu triggers desktop notification & focus
+            if shutil.which("gio"):
+                subprocess.Popen(['gio', 'open', url], env=launch_env, start_new_session=True)
+            elif shutil.which("xdg-open"):
+                subprocess.Popen(['xdg-open', url], env=launch_env, start_new_session=True)
+            elif main_profile_path and os.path.exists(main_profile_path):
                 subprocess.Popen([
                     'firefox',
                     '--profile', main_profile_path,
                     '--new-tab', url
-                ], env=clean_env, start_new_session=True)
-            else:
-                subprocess.Popen(['xdg-open', url], env=clean_env, start_new_session=True)
+                ], env=launch_env, start_new_session=True)
+
+            # Also trigger active window raise if available
+            raise_main_browser_window()
 
 if __name__ == '__main__':
     main()
