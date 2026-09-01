@@ -127,16 +127,47 @@ def create_kitsune_profile(slug: str, url: str, hide_browser_ui: bool = True) ->
     visibility: collapse !important;
 }
 
-/* Hide URL bar, search bar, and address bar elements completely */
-#nav-bar-customization-target,
-#urlbar-container,
-#urlbar,
+/* Completely hide URL bar background, text, borders, and controls */
+#urlbar-background,
 #urlbar-input,
-#identity-box,
+.urlbar-input-box,
+#urlbar-search-button,
+.urlbar-icon,
 #tracking-protection-icon-container,
 #page-action-buttons {
     display: none !important;
     visibility: hidden !important;
+}
+
+/* Strip all physical height, borders, background, and shadows from URL bar */
+#urlbar-container,
+#urlbar {
+    min-height: 0px !important;
+    max-height: 0px !important;
+    height: 0px !important;
+    margin: 0px !important;
+    padding: 0px !important;
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    pointer-events: none !important;
+}
+
+/* Preserve identity and permission anchor layout box without rendering visual artifacts */
+#identity-box,
+#identity-permission-box,
+.popup-anchor {
+    visibility: visible !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0px !important;
+    height: 0px !important;
+    min-width: 0px !important;
+    min-height: 0px !important;
+    margin: 0px !important;
+    padding: 0px !important;
+    border: none !important;
 }
 
 /* Visually collapse Navigation/URL bar without breaking popup anchors */
@@ -160,6 +191,7 @@ def create_kitsune_profile(slug: str, url: str, hide_browser_ui: bool = True) ->
 #permission-popup,
 #notification-popup,
 #contentAreaContextMenu,
+.permission-popup-container,
 .popup-anchor,
 panel[type="autocomplete-richlistbox"],
 panel,
