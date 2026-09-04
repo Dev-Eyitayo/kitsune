@@ -83,7 +83,8 @@ def create_desktop_launcher(
     profile_dir: Path,
     icon_path: Path,
     description: str = "",
-    categories: str = "Network;WebBrowser;"
+    categories: str = "Network;WebBrowser;",
+    mime_types: Optional[str] = None
 ) -> Path:
     """
     Generates the .desktop launcher file configured for GNOME / Wayland / XWayland / X11 dock separation.
@@ -92,29 +93,46 @@ def create_desktop_launcher(
     desktop_file = apps_dir / f"kitsune-{slug}.desktop"
     
     wm_class = f"kitsune-{slug}"
+    kitsune_bin = shutil.which("kitsune") or "kitsune"
+    
+    mime_line = f"MimeType={mime_types}\n" if mime_types else ""
+    if mime_types:
+        exec_cmd = f"{kitsune_bin} launch {slug} %u"
+    else:
+        exec_cmd = f'env GDK_BACKEND=x11 MOZ_APP_REMOTINGNAME={wm_class} firefox --class {wm_class} --name {wm_class} --new-instance --profile "{profile_dir}" "{url}"'
     
     content = f"""[Desktop Entry]
 Version=1.0
 Name={name}
 GenericName={name} Web App
 Comment={description or f'{name} Web App via Kitsune'}
-Exec=env GDK_BACKEND=x11 MOZ_APP_REMOTINGNAME={wm_class} firefox --class {wm_class} --name {wm_class} --new-instance --profile "{profile_dir}" "{url}"
+Exec={exec_cmd}
 Icon={icon_path}
 Terminal=false
 Type=Application
 StartupWMClass={wm_class}
 StartupNotify=true
 Categories={categories}
-Actions=new-window;
+{mime_line}Actions=new-window;
 
 [Desktop Action new-window]
 Name=Open {name}
-Exec=env GDK_BACKEND=x11 MOZ_APP_REMOTINGNAME={wm_class} firefox --class {wm_class} --name {wm_class} --new-instance --profile "{profile_dir}" "{url}"
+Exec={exec_cmd}
 """
     with open(desktop_file, "w", encoding="utf-8") as f:
         f.write(content)
 
     desktop_file.chmod(0o755)
+
+    # Register MIME / Scheme handlers if present
+    if mime_types:
+        for mt in mime_types.split(";"):
+            mt = mt.strip()
+            if mt:
+                try:
+                    subprocess.run(["xdg-mime", "default", desktop_file.name, mt], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
 
     # Refresh desktop database
     try:

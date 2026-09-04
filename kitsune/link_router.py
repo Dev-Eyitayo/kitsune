@@ -21,6 +21,7 @@ import subprocess
 import sys
 import time
 from ctypes import c_ulong, c_int, c_long, Structure, POINTER, byref
+from pathlib import Path
 from urllib.parse import urlparse
 
 AUTH_DOMAINS = [
@@ -196,9 +197,19 @@ def main():
         elif isinstance(data, str):
             url = data.strip()
         
-        if url and isinstance(url, str) and url.startswith(('http://', 'https://', 'mailto:')):
+        if url and isinstance(url, str) and (url.startswith(('http://', 'https://', 'mailto:')) or url.startswith('whatsapp://')):
             # Do not intercept OAuth, SSO, or payment authentication popups
             if is_auth_url(url):
+                continue
+
+            # Check if this is a WhatsApp link and kitsune-whatsapp is installed
+            whatsapp_profile = Path.home() / ".mozilla" / "firefox" / "kitsune-whatsapp"
+            if (
+                whatsapp_profile.exists()
+                and ("chat.whatsapp.com" in url or "wa.me" in url or url.startswith("whatsapp://"))
+            ):
+                kitsune_bin = shutil.which("kitsune") or "kitsune"
+                subprocess.Popen([kitsune_bin, "launch", "whatsapp", url], start_new_session=True)
                 continue
 
             # Generate fresh XDG / FreeDesktop startup activation token

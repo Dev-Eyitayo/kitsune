@@ -30,6 +30,87 @@ def slugify(text: str) -> str:
     return text.strip("-")
 
 
+def translate_protocol_url(slug: str, url: str) -> str:
+    """Translates incoming URI schemes and action links into Web App URLs."""
+    if not url:
+        return ""
+    url = url.strip()
+
+    if slug == "whatsapp":
+        from urllib.parse import urlparse, parse_qs
+        try:
+            u = urlparse(url)
+            params = parse_qs(u.query)
+
+            # 1. Channel invite code (from web accept links or queries)
+            channel_code = params.get("channel_invite_code", [""])[0]
+            if channel_code:
+                return f"https://web.whatsapp.com/channel/{channel_code}"
+
+            if u.scheme == "whatsapp":
+                net = (u.netloc or "").lower()
+                path = (u.path or "").strip("/").lower()
+                if "channel" in net or "channel" in path:
+                    ch = params.get("id", [""])[0] or u.path.strip("/").split("/")[-1]
+                    return f"https://web.whatsapp.com/channel/{ch}" if ch else "https://web.whatsapp.com"
+                elif net == "chat" or path == "chat":
+                    code = params.get("code", [""])[0]
+                    return f"https://web.whatsapp.com/accept?code={code}" if code else "https://web.whatsapp.com"
+                elif net == "send" or path == "send":
+                    phone = params.get("phone", [""])[0]
+                    text = params.get("text", [""])[0]
+                    q = []
+                    if phone:
+                        q.append(f"phone={phone}")
+                    if text:
+                        q.append(f"text={text}")
+                    qs = "&".join(q)
+                    return f"https://web.whatsapp.com/send?{qs}" if qs else "https://web.whatsapp.com"
+            elif "whatsapp.com" in (u.netloc or ""):
+                if "/channel/" in u.path:
+                    ch_id = u.path.split("/channel/")[-1].strip("/")
+                    return f"https://web.whatsapp.com/channel/{ch_id}"
+                elif "chat.whatsapp.com" in u.netloc:
+                    code = u.path.strip("/")
+                    return f"https://web.whatsapp.com/accept?code={code}"
+            elif "wa.me" in (u.netloc or ""):
+                phone = u.path.strip("/")
+                q = u.query
+                return f"https://web.whatsapp.com/send?phone={phone}&{q}" if q else f"https://web.whatsapp.com/send?phone={phone}"
+        except Exception:
+            pass
+    return url
+
+
+def launch_app(slug: str, url_arg: Optional[str] = None) -> bool:
+    """Launches an app or dispatches an incoming URL to its running instance."""
+    ff_dir = get_firefox_dir()
+    profile_dir = ff_dir / f"kitsune-{slug}"
+    if not profile_dir.exists():
+        return False
+
+    target_url = translate_protocol_url(slug, url_arg or "")
+    if not target_url:
+        preset = PRESETS.get(slug)
+        target_url = preset["url"] if preset else f"https://{slug}.com"
+
+    wm_class = f"kitsune-{slug}"
+    cmd = [
+        "firefox",
+        "--class", wm_class,
+        "--name", wm_class,
+        "--profile", str(profile_dir),
+        target_url
+    ]
+    import os
+    env = os.environ.copy()
+    env["GDK_BACKEND"] = "x11"
+    env["MOZ_APP_REMOTINGNAME"] = wm_class
+
+    subprocess.Popen(cmd, env=env, start_new_session=True)
+    return True
+
+
 def create_app(
     name: str,
     url: str,
@@ -46,6 +127,9 @@ def create_app(
     """
     if not slug:
         slug = slugify(name)
+
+    preset = PRESETS.get(slug, {})
+    mime_types = preset.get("mime_types")
 
     # 1. Create/update dedicated Firefox profile (never deletes existing cookies/data)
     profile_dir = create_kitsune_profile(slug, url, hide_browser_ui=hide_ui)
@@ -66,6 +150,7 @@ def create_app(
         icon_path=icon_path,
         description=description,
         categories=categories,
+        mime_types=mime_types,
     )
 
     # 5. Pin to dock
