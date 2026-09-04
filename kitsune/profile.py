@@ -89,6 +89,10 @@ def create_kitsune_profile(slug: str, url: str, hide_browser_ui: bool = True) ->
         'user_pref("browser.sessionstore.max_tabs_undo", 0);',
         'user_pref("browser.sessionstore.restore_pinned_tabs_on_demand", false);',
         'user_pref("browser.shell.checkDefaultBrowser", false);',
+        'user_pref("browser.link.open_newwindow", 1);',
+        'user_pref("browser.link.open_newwindow.override.external", 1);',
+        'user_pref("network.protocol-handler.external.whatsapp", false);',
+        'user_pref("network.protocol-handler.warn-external.whatsapp", false);',
         'user_pref("dom.disable_open_during_load", false);',
         'user_pref("dom.allow_scripts_to_close_windows", true);',
         'user_pref("dom.storage_access.enabled", true);',
@@ -214,27 +218,4 @@ menupopup {
         with open(user_chrome_css, "w", encoding="utf-8") as f:
             f.write(css_content)
 
-    # 3. Clean up SQLite Profile Groups if present (to avoid duplicate title modifiers)
-    clean_profile_groups_db(profile_dir.name)
-
     return profile_dir
-
-
-def clean_profile_groups_db(profile_folder_name: str) -> None:
-    """
-    Cleans up any profile name recorded in Firefox's Profile Groups SQLite database
-    so the window title doesn't display duplicate profile name tags.
-    """
-    ff_dir = get_firefox_dir()
-    db_files = list((ff_dir / "Profile Groups").glob("*.sqlite")) if (ff_dir / "Profile Groups").exists() else []
-    for db_path in db_files:
-        try:
-            conn = sqlite3.connect(str(db_path))
-            cur = conn.cursor()
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Profiles'")
-            if cur.fetchone():
-                cur.execute("UPDATE Profiles SET name = '' WHERE path = ?", (profile_folder_name,))
-                conn.commit()
-            conn.close()
-        except Exception:
-            pass

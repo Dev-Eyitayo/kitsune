@@ -9,6 +9,7 @@ PRESETS = {
         "icon_url": "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/svg/whatsapp.svg",
         "categories": "Network;InstantMessaging;Chat;",
         "description": "WhatsApp Web client via Firefox",
+        "mime_types": "x-scheme-handler/whatsapp;",
     },
     "chatgpt": {
         "name": "ChatGPT",
@@ -30,6 +31,7 @@ PRESETS = {
         "icon_url": "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/svg/discord.svg",
         "categories": "Network;InstantMessaging;Chat;",
         "description": "Discord Web App",
+        "mime_types": "x-scheme-handler/discord;",
     },
     "spotify": {
         "name": "Spotify",

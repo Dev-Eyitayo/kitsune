@@ -7,7 +7,7 @@ import sys
 from typing import Optional
 
 from . import __version__
-from .core import create_app, list_apps, refresh_all_apps, remove_app, update_kitsune
+from .core import create_app, launch_app, list_apps, refresh_all_apps, remove_app, update_kitsune
 from .presets import PRESETS
 
 
@@ -231,6 +231,11 @@ def main():
     # Refresh command
     subparsers.add_parser("refresh", help="Refresh configuration for all installed web apps")
 
+    # Launch command
+    launch_p = subparsers.add_parser("launch", help="Launch an app or dispatch an action URL")
+    launch_p.add_argument("slug", help="Slug of the app to launch (e.g. whatsapp)")
+    launch_p.add_argument("url", nargs="?", help="Optional URL or action link to open")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -252,6 +257,8 @@ def main():
         cmd_update(args)
     elif args.command == "refresh":
         cmd_refresh(args)
+    elif args.command == "launch":
+        launch_app(args.slug, args.url)
 
 
 if __name__ == "__main__":
